@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor User
+    participant UI as Config UI
+    participant GitLab
+    participant App as Spring Boot Webhook API
+    participant DB as App DB
+    participant DevOps as DevOps Deployment API
+    participant K8s as Kubernetes Cluster
+
+    User->>UI: Edit env config
+    UI->>GitLab: Create branch + commit + Merge Request
+    GitLab-->>UI: MR id / URL
+    UI->>DB: Store MR tracking record
+
+    actor Reviewer
+    Reviewer->>GitLab: Approve + merge MR
+
+    GitLab->>App: POST /webhooks/gitlab<br/>Merge Request Event
+    App->>App: Validate GitLab token/signature
+    App->>App: Check event type = merge_request
+    App->>App: Check object_attributes.state = merged
+
+    App->>GitLab: Optional: Fetch MR details
+    GitLab-->>App: MR metadata
+
+    App->>DB: Mark config change as MERGED
+    App->>DevOps: POST /deploy-config<br/>env, app, repo, commitSha
+    DevOps->>K8s: Checkout env config + copy to resource config folder
+    DevOps-->>App: Deployment accepted/result
+    App->>DB: Store deployment status
+    App-->>GitLab: 200 OK
